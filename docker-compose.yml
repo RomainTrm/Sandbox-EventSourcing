@@ -1,0 +1,21 @@
+﻿services:
+  postgres:
+    image: postgres:17-alpine
+    volumes:
+      - ./docker-data/pgdata:/var/lib/postgresql/data
+    networks:
+      - default
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  admin:
+    image: adminer
+    links:
+      - postgres
+    networks:
+      - default
+    ports:
+      - "127.0.0.1:8381:8080"

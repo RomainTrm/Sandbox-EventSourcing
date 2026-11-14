@@ -22,6 +22,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+docker-data/
 
 # .NET Core
 project.lock.json
