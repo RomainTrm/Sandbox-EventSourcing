@@ -1,0 +1,8 @@
+﻿namespace Sandbox.Updater;
+
+public static class UpgradeSteps
+{
+    public static List<string> All => [
+        "initialize"
+    ];
+}
