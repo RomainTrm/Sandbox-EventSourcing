@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Implemetations/">
+    <Project Path="Sandbox.Aggregates.Tests/Sandbox.Aggregates.Tests.csproj" />
+    <Project Path="Sandbox.Aggregates/Sandbox.Aggregates.csproj" />
+  </Folder>
   <Project Path="Sandbox.Common/Sandbox.Common.csproj" />
   <Project Path="Sandbox.Updater/Sandbox.Updater.csproj" />
 </Solution>

@@ -20,7 +20,9 @@ In case of a ``command`` that must handle several ``aggregate``s at once, the ``
 
 To details, [DCB](https://dcb.events/)
 
-## Useful commands
+## How to run?
 
-Start database : ``docker-compose -f docker-compose.yml up postgres admin``  
+Start database : ``docker-compose -f docker-compose.yml up postgres admin``.  
+Add new migrations scripts in ``Sandbox.Updater\Migrations`` then declare them in ``Sandbox.Updater\UpgrateSteps.cs``.  
+Update database schema by executing ``Sandbox.Updater``.  
 Explore database on [adminer](http://127.0.0.1:8381/?pgsql=postgres&username=postgres) with ``postgres`` as a password.  

@@ -3,6 +3,7 @@
 public static class UpgradeSteps
 {
     public static List<string> All => [
-        "initialize"
+        "initialize",
+        "add-aggregates-event-store",
     ];
 }

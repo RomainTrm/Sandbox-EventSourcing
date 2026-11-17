@@ -7,6 +7,7 @@ namespace Sandbox.Common.Database;
 public interface IConnection
 {
     Task Execute(string sqlQuery, IEnumerable<KeyValuePair<string, object>> parameters);
+    Task ExecuteAll(string sqlQuery, IEnumerable<IEnumerable<KeyValuePair<string, object>>> parameters);
     Task<List<TResult>> QueryAll<TResult>(string sqlQuery, IEnumerable<KeyValuePair<string, object>> parameters);
     Task<TResult> QueryFirst<TResult>(string sqlQuery, IEnumerable<KeyValuePair<string, object>> parameters);
 }
@@ -27,6 +28,11 @@ public abstract class DatabaseConnection(NpgsqlConnection connection) : IConnect
     public NpgsqlConnection NpgsqlConnection { get; } = connection;
     
     public async Task Execute(string sqlQuery, IEnumerable<KeyValuePair<string, object>> parameters)
+    {
+        await NpgsqlConnection.ExecuteAsync(sqlQuery, parameters);
+    }
+
+    public async Task ExecuteAll(string sqlQuery, IEnumerable<IEnumerable<KeyValuePair<string, object>>> parameters)
     {
         await NpgsqlConnection.ExecuteAsync(sqlQuery, parameters);
     }
