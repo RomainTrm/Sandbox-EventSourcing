@@ -1,10 +1,17 @@
 ﻿using System.Text.Json;
+using Sandbox.Common;
 using Sandbox.Common.Database;
 
 namespace Sandbox.Aggregates;
 
-public class EventStore(ITransactionConnection connection)
+public class EventStore(INotTransactionConnection connection)
 {
+    public static async Task<EventStore> Build(IConnectionFactory connectionFactory)
+    {
+        var connection = await connectionFactory.CreateConnection();
+        return new EventStore(connection);
+    }
+    
     private static readonly JsonSerializerOptions JsonSerializerOptions = new()
     {
         InferClosedTypePolymorphism = true,

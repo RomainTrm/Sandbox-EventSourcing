@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Sandbox.Aggregates;
+using Sandbox.Common;
 using Sandbox.Common.Database;
 
 namespace Sandbox.Aggregates.Tests;
@@ -19,7 +19,7 @@ public class EventStoreTests : IAsyncLifetime
     private const string AggregateName = "test-aggregate";
 
     private ImplicitRollbackTransactionConnectionFactory _factory = null!;
-    private ITransactionConnection _connection = null!;
+    private INotTransactionConnection _connection = null!;
     private EventStore _store = null!;
 
     public async Task InitializeAsync()
