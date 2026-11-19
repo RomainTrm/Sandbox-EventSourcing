@@ -14,7 +14,8 @@ When an ``item`` moves from one inventory to another, it should be considered as
 
 Each ``aggregate`` own his stream of ``event``s, ``event``s are not shared between ``aggregate``s.  
 A ``command`` load every ``event``s of the ``aggregate``, then a new ``event``s are appended to the stream.  
-In case of a ``command`` that must handle several ``aggregate``s at once, the ``command handler`` is responsible for the orchestration of the ``aggregate``s.
+In case of a ``command`` that must handle several ``aggregate``s at once, the ``command handler`` is responsible for the orchestration of the ``aggregate``s.  
+This specific implementation seats in ``Sandbox.Aggregates``.
 
 ### 2. Dynamic Consistency Boundary (DCB) approach
 

@@ -1,5 +1,5 @@
 <Solution>
-  <Folder Name="/Implemetations/">
+  <Folder Name="/Implementations/">
     <Project Path="Sandbox.Aggregates.Tests/Sandbox.Aggregates.Tests.csproj" />
     <Project Path="Sandbox.Aggregates/Sandbox.Aggregates.csproj" />
   </Folder>
