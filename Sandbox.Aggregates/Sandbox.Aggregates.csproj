@@ -10,4 +10,8 @@
       <ProjectReference Include="..\Sandbox.Common\Sandbox.Common.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Aggregates\" />
+    </ItemGroup>
+
 </Project>

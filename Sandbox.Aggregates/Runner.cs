@@ -1,11 +1,12 @@
-﻿using Sandbox.Common;
+﻿using Sandbox.Aggregates.Commands;
+using Sandbox.Common;
 using Sandbox.Common.Commands;
 using Sandbox.Common.Database;
 using Sandbox.Common.Queries;
 
 namespace Sandbox.Aggregates;
 
-public class Runner(IConnectionFactory  connectionFactory) : IRunner
+public class Runner(IConnectionFactory connectionFactory) : IRunner
 {
     public async Task RunCommand<TCommand>(TCommand command) where TCommand : ICommand
     {
@@ -15,6 +16,7 @@ public class Runner(IConnectionFactory  connectionFactory) : IRunner
     
     private ICommandHandler<TCommand> BuildCommandHandler<TCommand>() where TCommand : ICommand
     {
+        if (typeof(TCommand) == typeof(CreateBuyingOrder)) return (ICommandHandler<TCommand>) new CreateBuyingOrderHandler(connectionFactory);
         throw new NotImplementedException();
     }
 
@@ -24,7 +26,7 @@ public class Runner(IConnectionFactory  connectionFactory) : IRunner
         return queryHandler.Request(query);
     }
 
-    private IQueryHandler<TQuery, TResult> BuildQueryHandler<TQuery, TResult>() where TQuery : IQuery<TResult>
+    private static IQueryHandler<TQuery, TResult> BuildQueryHandler<TQuery, TResult>() where TQuery : IQuery<TResult>
     {
         throw new NotImplementedException();
     }
