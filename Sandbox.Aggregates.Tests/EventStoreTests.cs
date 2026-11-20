@@ -26,7 +26,7 @@ public class EventStoreTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _factory = new ImplicitRollbackTransactionConnectionFactory(new DatabaseConfig());
-        _connection = (ITransactionConnection)await _factory.CreateConnection();
+        _connection = await _factory.CreateConnection();
         _store = new EventStore(_connection, new EventBus([]));
     }
 
@@ -172,7 +172,7 @@ public class EventStoreTests : IAsyncLifetime
         await store.SaveEvents([new EventStore.SaveRequest<TestEvent>(query, 0, [new ItemAdded("apple"), new ItemRemoved("apple")])]);
 
         Assert.Equal(
-            [(query.TenantId, query.AggregateId, new ItemAdded("apple")), (query.TenantId, query.AggregateId, (IEvent)new ItemRemoved("apple"))],
+            [(query.TenantId, query.AggregateId, new ItemAdded("apple")), (query.TenantId, query.AggregateId, new ItemRemoved("apple"))],
             handler.Received);
     }
 
@@ -230,7 +230,7 @@ public class EventStoreTests : IAsyncLifetime
         ]);
 
         Assert.Equal(
-            [(tenantId, firstQuery.AggregateId, new ItemAdded("apple")), (tenantId, secondQuery.AggregateId, (IEvent)new ItemRemoved("pear"))],
+            [(tenantId, firstQuery.AggregateId, new ItemAdded("apple")), (tenantId, secondQuery.AggregateId, new ItemRemoved("pear"))],
             handler.Received);
     }
 }

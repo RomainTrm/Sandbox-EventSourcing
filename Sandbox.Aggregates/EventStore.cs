@@ -59,6 +59,8 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
 
     public async Task SaveEvents(IEnumerable<SaveRequest> eventsToSave)
     {
+        await using var transaction = await connection.BeginTransaction();
+        
         var saveRequests = eventsToSave.ToList();
         var args = saveRequests
             .SelectMany(saveRequest => saveRequest
@@ -79,6 +81,8 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
                 VALUES (@database, @aggregateName, @aggregateId, @sequenceNumber, @data::jsonb)
             """,
             args);
+
+        await transaction.Commit();
 
         // Dispatch only once every insert succeeded: a stale version throws above and reaches no handler.
         foreach (var saveRequest in saveRequests)

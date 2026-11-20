@@ -17,7 +17,7 @@ public interface INotTransactionConnection : IConnection, IDisposable, IAsyncDis
     Task<ITransactionConnection> BeginTransaction();
 }
 
-public interface ITransactionConnection : INotTransactionConnection
+public interface ITransactionConnection : IConnection, IDisposable, IAsyncDisposable
 {
     Task Commit();
     Task Rollback();
@@ -63,7 +63,7 @@ public class NotTransactionDatabaseConnection(NpgsqlConnection connection) : Dat
     async ValueTask IAsyncDisposable.DisposeAsync() => await NpgsqlConnection.DisposeAsync();
 }
 
-public class TransactionDatabaseConnection(NpgsqlConnection connection, NpgsqlTransaction transaction, bool disposeConnection) : NotTransactionDatabaseConnection(connection), ITransactionConnection
+public class TransactionDatabaseConnection(NpgsqlConnection connection, NpgsqlTransaction transaction, bool disposeConnection) : DatabaseConnection(connection), ITransactionConnection
 {
     public Task Commit() => transaction.CommitAsync();
     public Task Rollback() => transaction.RollbackAsync();

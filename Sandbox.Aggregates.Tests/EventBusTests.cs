@@ -1,5 +1,3 @@
-using Sandbox.Common;
-
 namespace Sandbox.Aggregates.Tests;
 
 public class EventBusTests
@@ -14,7 +12,7 @@ public class EventBusTests
         bus.Dispatch("tenant", "id", new ItemRemoved("apple"));
 
         Assert.Equal(
-            [("tenant", "id", new ItemAdded("apple")), ("tenant", "id", (IEvent)new ItemRemoved("apple"))],
+            [("tenant", "id", new ItemAdded("apple")), ("tenant", "id", new ItemRemoved("apple"))],
             handler.Received);
     }
 

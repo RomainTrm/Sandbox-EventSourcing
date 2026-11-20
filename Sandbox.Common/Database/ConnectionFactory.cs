@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Npgsql;
+﻿using Npgsql;
 
 namespace Sandbox.Common.Database;
 
@@ -40,18 +39,9 @@ public class ConnectionFactory(DatabaseConfig config) : IConnectionFactory
     async ValueTask IAsyncDisposable.DisposeAsync() => await _dataSource.DisposeAsync();
 }
 
-public class ImplicitRollbackTransactionConnectionFactory(DatabaseConfig config) : IConnectionFactory
+public class StubConnectionFactory(NotDisposableDatabaseConnection connection) : IConnectionFactory
 {
-    private readonly NpgsqlDataSource _dataSource = config.BuildDataSource();
-    
-    public async Task<INotTransactionConnection> CreateConnection()
-    {
-        var connection = new NotTransactionDatabaseConnection(_dataSource.CreateConnection());
-        await connection.NpgsqlConnection.OpenAsync();
-        var transaction = await connection.NpgsqlConnection.BeginTransactionAsync(IsolationLevel.RepeatableRead);
-        return new TransactionDatabaseConnection(connection.NpgsqlConnection, transaction, true);
-    }
-
-    void IDisposable.Dispose() => _dataSource.Dispose();
-    async ValueTask IAsyncDisposable.DisposeAsync() => await _dataSource.DisposeAsync();
+    public Task<INotTransactionConnection> CreateConnection() => Task.FromResult<INotTransactionConnection>(connection);
+    public void Dispose() {}
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
