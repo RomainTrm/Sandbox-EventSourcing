@@ -1,8 +1,7 @@
 using System.Reflection;
-using Sandbox.Common;
 using Sandbox.Common.Readmodels;
 
-namespace Sandbox.Aggregates;
+namespace Sandbox.Common;
 
 /// <summary>
 /// Dispatches events to every <see cref="IEventHandler{TEvent}"/> registered for the event's exact runtime type.

@@ -8,7 +8,7 @@ Implement the **same business problem** several times, once per CQRS/ES strategy
 
 ## Solution layout
 
-- **`Sandbox.Common`** holds the **public contracts** that every implementation shares: commands (`Commands/`, implementing `ICommand`), read models (`Readmodels/`), and the database infrastructure (`Database/`). It must stay strategy-agnostic, so never put strategy-specific types here.
+- **`Sandbox.Common`** holds the **public contracts** that every implementation shares: commands (`Commands/`, implementing `ICommand`), read models (`Readmodels/`), the `EventBus` that dispatches events to `IEventHandler<T>`s, and the database infrastructure (`Database/`). It must stay strategy-agnostic, so never put strategy-specific types here. Unit tests for its own code (like `EventBusTests.cs`) go in **`Sandbox.Common.Tests`**.
 - **One project per strategy**, for example `Sandbox.Aggregates` (classical aggregates) and later a DCB implementation. Each one implements the commands and read models from `Sandbox.Common` in its own style. Each has its own rules file under `.claude/rules/` that is scoped to its folder. **Follow that file when working in the project.** A new strategy gets a new project in the `/Implemetations/` solution folder of `Sandbox-EventSourcing.slnx` (the folder name is misspelled) and a new rules file.
 - **`Sandbox.Updater`** is a console app that applies SQL migrations to Postgres.
 - **Tests**: every implementation must pass a **common integration test suite** that is written against the public contracts only. Each implementation's test project runs that suite against its own implementation. Tests specific to one implementation's internals (like `Sandbox.Aggregates.Tests/EventStoreTests.cs`) go in that implementation's test project.
@@ -17,7 +17,10 @@ Implement the **same business problem** several times, once per CQRS/ES strategy
 
 - **Read models are kept in memory.** They are not what this project is comparing, so only events are persisted in Postgres. Don't add read model tables, projections stored in the database, or projection checkpoints.
 - Persistence goes through `Sandbox.Common.Database` (`IConnection` / `ITransactionConnection`, which wrap Dapper and Npgsql). Parameters are passed as `Dictionary<string, object>`.
-- `ImplicitRollbackTransactionConnectionFactory` returns a connection that is already inside a transaction and is never committed, so disposing it rolls everything back. Tests use it for isolation, and they also use random tenant and aggregate IDs.
+- `ImplicitRollbackTransactionConnectionFactory` (`Sandbox.Common/Database/TestHelpers.cs`) returns a `NotDisposableDatabaseConnection` that is already inside a transaction which is never committed, so disposing the factory's connection rolls everything back. Tests use it for isolation, and they also use random tenant and aggregate IDs.
+  - Its `BeginTransaction()` returns a nested connection on the same transaction, and that connection's `Commit()` does nothing. Code that opens and commits its own transaction (like `EventStore.SaveEvents`) therefore runs unchanged inside the test transaction.
+  - Disposing the root connection throws if any nested connection wasn't disposed, so production code must `await using` its transactions.
+  - Its `Rollback()` is not implemented.
 
 ## Commands
 

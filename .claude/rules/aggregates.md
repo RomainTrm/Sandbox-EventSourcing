@@ -10,7 +10,7 @@ paths:
 
 - **Each aggregate owns its own event stream.** Aggregates never share events, and an aggregate never reads another aggregate's stream.
 - To handle a command: load **all** events of the aggregate (`EventStore.LoadEvents`), rebuild its state from them, decide which new events to emit, then append them with `EventStore.SaveEvents`.
-- A command that involves several aggregates is orchestrated by its **command handler**. The handler loads each aggregate, calls each one, and saves every `SaveRequest` in a single `SaveEvents` call inside one transaction. The handler owns the transaction and its `Commit()`.
+- A command that involves several aggregates is orchestrated by its **command handler**. The handler loads each aggregate, calls each one, and saves every `SaveRequest` in a single `SaveEvents` call, which keeps the save atomic across those aggregates. The handler doesn't open or commit a transaction, because `SaveEvents` does.
 - Read models are updated in memory from the events that were saved.
 
 ## Event store (`EventStore.cs`)
@@ -20,7 +20,8 @@ paths:
   - `SaveRequest.AggregateVersion` is the number of events already loaded.
   - New events are numbered `AggregateVersion + 1 + i`.
   - The unique index rejects a stale version, so `SaveEvents` throws. Don't add other locking.
-- **Event dispatch**: once every insert has succeeded (and before the handler's `Commit()`), `SaveEvents` passes each saved event to the injected `EventBus`. The bus calls every `IEventHandler<T>` whose `T` is the event's **exact runtime type**, so handlers registered on a base type are not called. Handler exceptions propagate.
+- **Transaction**: `SaveEvents` opens its own transaction (`connection.BeginTransaction()`), inserts every event of every request, and commits. If any insert fails, disposing the transaction rolls everything back.
+- **Event dispatch**: only **after the commit** does `SaveEvents` pass each saved event to the injected `EventBus` (from `Sandbox.Common`), in request order and then event order. The bus calls every `IEventHandler<T>` whose `T` is the event's **exact runtime type**, so handlers registered on a base type are not called. Handler exceptions propagate, but by then the events are already persisted.
 
 ## Event types
 

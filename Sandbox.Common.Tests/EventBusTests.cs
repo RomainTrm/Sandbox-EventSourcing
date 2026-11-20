@@ -1,4 +1,6 @@
-namespace Sandbox.Aggregates.Tests;
+using Sandbox.Common.Tests.Fakes;
+
+namespace Sandbox.Common.Tests;
 
 public class EventBusTests
 {
@@ -14,6 +16,30 @@ public class EventBusTests
         Assert.Equal(
             [("tenant", "id", new ItemAdded("apple")), ("tenant", "id", new ItemRemoved("apple"))],
             handler.Received);
+    }
+
+    [Fact]
+    public void Dispatch_SeveralHandlersOfTheSameEventType_AllReceiveIt()
+    {
+        var first = new RecordingHandler();
+        var second = new RecordingHandler();
+        var bus = new EventBus([first, second]);
+
+        bus.Dispatch("tenant", "id", new ItemAdded("apple"));
+
+        Assert.Single(first.Received);
+        Assert.Single(second.Received);
+    }
+
+    [Fact]
+    public void Dispatch_BaseTypeHandler_IsNotCalled()
+    {
+        var handler = new BaseTypeHandler();
+        var bus = new EventBus([handler]);
+
+        bus.Dispatch("tenant", "id", new ItemAdded("apple"));
+
+        Assert.Equal(0, handler.Calls);
     }
 
     [Fact]
@@ -33,10 +59,5 @@ public class EventBusTests
         var bus = new EventBus([new ThrowingHandler()]);
 
         Assert.Throws<InvalidOperationException>(() => bus.Dispatch("tenant", "id", new OrderPlaced(1m)));
-    }
-
-    private class ThrowingHandler : Sandbox.Common.Readmodels.IEventHandler<OrderPlaced>
-    {
-        public void Handle(string tenant, string aggregateId, OrderPlaced @event) => throw new InvalidOperationException();
     }
 }
