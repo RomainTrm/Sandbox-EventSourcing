@@ -4,12 +4,12 @@ using Sandbox.Common.Database;
 
 namespace Sandbox.Aggregates;
 
-public class EventStore(INotTransactionConnection connection)
+public class EventStore(INotTransactionConnection connection, EventBus eventBus)
 {
-    public static async Task<EventStore> Build(IConnectionFactory connectionFactory)
+    public static async Task<EventStore> Build(IConnectionFactory connectionFactory, EventBus eventBus)
     {
         var connection = await connectionFactory.CreateConnection();
-        return new EventStore(connection);
+        return new EventStore(connection, eventBus);
     }
     
     private static readonly JsonSerializerOptions JsonSerializerOptions = new()
@@ -23,6 +23,7 @@ public class EventStore(INotTransactionConnection connection)
     public abstract record SaveRequest(Query Query, int AggregateVersion)
     {
         internal abstract IEnumerable<string> SerializeNewEvents(JsonSerializerOptions options);
+        internal abstract IEnumerable<IEvent> GetNewEvents();
     }
 
     public record SaveRequest<TEvents>(Query Query, int AggregateVersion, List<TEvents> NewEvents)
@@ -31,6 +32,8 @@ public class EventStore(INotTransactionConnection connection)
     {
         internal override IEnumerable<string> SerializeNewEvents(JsonSerializerOptions options) =>
             NewEvents.Select(evt => JsonSerializer.Serialize(evt, options));
+
+        internal override IEnumerable<IEvent> GetNewEvents() => NewEvents.Cast<IEvent>();
     }
 
     public async Task<List<TEvents>> LoadEvents<TEvents>(Query query)
@@ -56,7 +59,8 @@ public class EventStore(INotTransactionConnection connection)
 
     public async Task SaveEvents(IEnumerable<SaveRequest> eventsToSave)
     {
-        var args = eventsToSave
+        var saveRequests = eventsToSave.ToList();
+        var args = saveRequests
             .SelectMany(saveRequest => saveRequest
                 .SerializeNewEvents(JsonSerializerOptions)
                 .Select((data, index) => new Dictionary<string, object>
@@ -75,5 +79,10 @@ public class EventStore(INotTransactionConnection connection)
                 VALUES (@database, @aggregateName, @aggregateId, @sequenceNumber, @data::jsonb)
             """,
             args);
+
+        // Dispatch only once every insert succeeded: a stale version throws above and reaches no handler.
+        foreach (var saveRequest in saveRequests)
+        foreach (var evt in saveRequest.GetNewEvents())
+            eventBus.Dispatch(saveRequest.Query.TenantId, saveRequest.Query.AggregateId, evt);
     }
 }

@@ -8,6 +8,9 @@ namespace Sandbox.Aggregates;
 
 public class Runner(IConnectionFactory connectionFactory) : IRunner
 {
+    // In-memory read model handlers get registered here.
+    private readonly EventBus _eventBus = new([]);
+
     public async Task RunCommand<TCommand>(TCommand command) where TCommand : ICommand
     {
         var commandHandler = BuildCommandHandler<TCommand>();
@@ -16,7 +19,7 @@ public class Runner(IConnectionFactory connectionFactory) : IRunner
     
     private ICommandHandler<TCommand> BuildCommandHandler<TCommand>() where TCommand : ICommand
     {
-        if (typeof(TCommand) == typeof(CreateBuyingOrder)) return (ICommandHandler<TCommand>) new CreateBuyingOrderHandler(connectionFactory);
+        if (typeof(TCommand) == typeof(CreateBuyingOrder)) return (ICommandHandler<TCommand>) new CreateBuyingOrderHandler(connectionFactory, _eventBus);
         throw new NotImplementedException();
     }
 

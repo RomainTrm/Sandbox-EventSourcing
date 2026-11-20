@@ -20,6 +20,7 @@ paths:
   - `SaveRequest.AggregateVersion` is the number of events already loaded.
   - New events are numbered `AggregateVersion + 1 + i`.
   - The unique index rejects a stale version, so `SaveEvents` throws. Don't add other locking.
+- **Event dispatch**: once every insert has succeeded (and before the handler's `Commit()`), `SaveEvents` passes each saved event to the injected `EventBus`. The bus calls every `IEventHandler<T>` whose `T` is the event's **exact runtime type**, so handlers registered on a base type are not called. Handler exceptions propagate.
 
 ## Event types
 

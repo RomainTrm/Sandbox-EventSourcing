@@ -3,9 +3,9 @@ using Sandbox.Common.Database;
 
 namespace Sandbox.Aggregates.Commands;
 
-public class CreateBuyingOrderHandler(IConnectionFactory connectionFactory) : ICommandHandler<CreateBuyingOrder>
+public class CreateBuyingOrderHandler(IConnectionFactory connectionFactory, EventBus eventBus) : ICommandHandler<CreateBuyingOrder>
 {
-    private readonly Task<EventStore> _eventStore = EventStore.Build(connectionFactory);
+    private readonly Task<EventStore> _eventStore = EventStore.Build(connectionFactory, eventBus);
 
     public Task Handle(CreateBuyingOrder command)
     {

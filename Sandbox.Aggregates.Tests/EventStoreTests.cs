@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Sandbox.Common;
 using Sandbox.Common.Database;
+using Sandbox.Common.Readmodels;
 
 namespace Sandbox.Aggregates.Tests;
 
@@ -26,7 +27,7 @@ public class EventStoreTests : IAsyncLifetime
     {
         _factory = new ImplicitRollbackTransactionConnectionFactory(new DatabaseConfig());
         _connection = (ITransactionConnection)await _factory.CreateConnection();
-        _store = new EventStore(_connection);
+        _store = new EventStore(_connection, new EventBus([]));
     }
 
     public async Task DisposeAsync()
@@ -160,4 +161,91 @@ public class EventStoreTests : IAsyncLifetime
 
         Assert.Empty(await _store.LoadEvents<TestEvent>(query));
     }
+
+    [Fact]
+    public async Task SaveEvents_DispatchesSavedEventsInOrder()
+    {
+        var handler = new RecordingHandler();
+        var store = new EventStore(_connection, new EventBus([handler]));
+        var query = NewQuery();
+
+        await store.SaveEvents([new EventStore.SaveRequest<TestEvent>(query, 0, [new ItemAdded("apple"), new ItemRemoved("apple")])]);
+
+        Assert.Equal(
+            [(query.TenantId, query.AggregateId, new ItemAdded("apple")), (query.TenantId, query.AggregateId, (IEvent)new ItemRemoved("apple"))],
+            handler.Received);
+    }
+
+    [Fact]
+    public async Task SaveEvents_DispatchesToEveryHandlerOfTheSameEventType()
+    {
+        var first = new RecordingHandler();
+        var second = new RecordingHandler();
+        var store = new EventStore(_connection, new EventBus([first, second]));
+        var query = NewQuery();
+
+        await store.SaveEvents([new EventStore.SaveRequest<TestEvent>(query, 0, [new ItemAdded("apple")])]);
+
+        Assert.Single(first.Received);
+        Assert.Single(second.Received);
+    }
+
+    [Fact]
+    public async Task SaveEvents_WithStaleVersion_DispatchesNothing()
+    {
+        var query = NewQuery();
+        await _store.SaveEvents([new EventStore.SaveRequest<TestEvent>(query, 0, [new ItemAdded("apple")])]);
+        var handler = new RecordingHandler();
+        var store = new EventStore(_connection, new EventBus([handler]));
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            store.SaveEvents([new EventStore.SaveRequest<TestEvent>(query, 0, [new ItemAdded("pear")])]));
+
+        Assert.Empty(handler.Received);
+    }
+
+    [Fact]
+    public async Task SaveEvents_DoesNotDispatchToBaseTypeHandlers()
+    {
+        var handler = new BaseTypeHandler();
+        var store = new EventStore(_connection, new EventBus([handler]));
+
+        await store.SaveEvents([new EventStore.SaveRequest<TestEvent>(NewQuery(), 0, [new ItemAdded("apple")])]);
+
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task SaveEvents_MultipleRequests_DispatchesEveryAggregateEvents()
+    {
+        var handler = new RecordingHandler();
+        var store = new EventStore(_connection, new EventBus([handler]));
+        var tenantId = $"tenant-{Guid.NewGuid()}";
+        var firstQuery = NewQuery(tenantId);
+        var secondQuery = NewQuery(tenantId);
+
+        await store.SaveEvents([
+            new EventStore.SaveRequest<TestEvent>(firstQuery, 0, [new ItemAdded("apple")]),
+            new EventStore.SaveRequest<TestEvent>(secondQuery, 0, [new ItemRemoved("pear")]),
+        ]);
+
+        Assert.Equal(
+            [(tenantId, firstQuery.AggregateId, new ItemAdded("apple")), (tenantId, secondQuery.AggregateId, (IEvent)new ItemRemoved("pear"))],
+            handler.Received);
+    }
+}
+
+public class RecordingHandler : IEventHandler<ItemAdded>, IEventHandler<ItemRemoved>
+{
+    public List<(string Tenant, string AggregateId, IEvent Event)> Received { get; } = [];
+
+    public void Handle(string tenant, string aggregateId, ItemAdded @event) => Received.Add((tenant, aggregateId, @event));
+    public void Handle(string tenant, string aggregateId, ItemRemoved @event) => Received.Add((tenant, aggregateId, @event));
+}
+
+public class BaseTypeHandler : IEventHandler<TestEvent>
+{
+    public int Calls { get; private set; }
+
+    public void Handle(string tenant, string aggregateId, TestEvent @event) => Calls++;
 }
