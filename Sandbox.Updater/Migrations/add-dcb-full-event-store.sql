@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS "public"."dcb_flags_full"
 ) WITH (oids = false);
 
 CREATE UNIQUE INDEX "dcb_flags_full_idx"
-    ON "public"."dcb_flags_full" ("database", "aggregate_name", "aggregate_id");
+    ON "public"."dcb_flags_full" ("database", "aggregate_name", "aggregate_id", "event_id");
