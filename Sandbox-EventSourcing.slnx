@@ -2,6 +2,8 @@
   <Folder Name="/Implementations/">
     <Project Path="Sandbox.Aggregates.Tests/Sandbox.Aggregates.Tests.csproj" />
     <Project Path="Sandbox.Aggregates/Sandbox.Aggregates.csproj" />
+    <Project Path="Sandbox.DCB.Lite.Tests/Sandbox.DCB.Lite.Tests.csproj" />
+    <Project Path="Sandbox.DCB.Lite/Sandbox.DCB.Lite.csproj" />
   </Folder>
   <Project Path="Sandbox.Common.Tests/Sandbox.Common.Tests.csproj" />
   <Project Path="Sandbox.Common/Sandbox.Common.csproj" />
