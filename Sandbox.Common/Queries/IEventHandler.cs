@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Common.Readmodels;
+﻿namespace Sandbox.Common.Queries;
 
 public interface IEventHandler;
 

@@ -1,5 +1,5 @@
 using System.Reflection;
-using Sandbox.Common.Readmodels;
+using Sandbox.Common.Queries;
 
 namespace Sandbox.Common;
 

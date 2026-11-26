@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Sandbox.Common;
-using Sandbox.Common.Readmodels;
+using Sandbox.Common.Queries;
 
 namespace Sandbox.DCB.Full.Tests.Fakes;
 
