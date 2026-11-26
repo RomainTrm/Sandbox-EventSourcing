@@ -151,6 +151,6 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
         // Dispatch only once the save is committed: a failed append condition throws above and reaches no handler.
         foreach (var evt in events)
         foreach (var tag in evt.Tags)
-            eventBus.Dispatch(tenantId, tag.Id, evt.Event);
+            await eventBus.Dispatch(tenantId, tag.Id, evt.Event);
     }
 }

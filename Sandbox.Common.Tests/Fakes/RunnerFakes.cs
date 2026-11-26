@@ -24,10 +24,9 @@ public sealed record UnhandledQuery : IQuery<int>;
 
 public class IncreaseStockHandler(EventBus eventBus) : ICommandHandler<IncreaseStock>
 {
-    public Task Handle(IncreaseStock command)
+    public async Task Handle(IncreaseStock command)
     {
-        eventBus.Dispatch("tenant", command.ItemId, new StockIncreased(command.Quantity));
-        return Task.CompletedTask;
+        await eventBus.Dispatch("tenant", command.ItemId, new StockIncreased(command.Quantity));
     }
 }
 
@@ -35,8 +34,11 @@ public class StockReadModel : IEventHandler<StockIncreased>, IQueryHandler<GetSt
 {
     private readonly Dictionary<string, int> _stocks = new();
 
-    public void Handle(string tenant, string aggregateId, StockIncreased @event)
-        => _stocks[aggregateId] = _stocks.GetValueOrDefault(aggregateId) + @event.Quantity;
+    public Task Handle(string tenant, string aggregateId, StockIncreased @event)
+    {
+        _stocks[aggregateId] = _stocks.GetValueOrDefault(aggregateId) + @event.Quantity;
+        return Task.CompletedTask;
+    }
 
     public int Request(GetStock query) => _stocks.GetValueOrDefault(query.ItemId);
 }

@@ -87,6 +87,6 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
         // Dispatch only once every insert succeeded: a stale version throws above and reaches no handler.
         foreach (var saveRequest in saveRequests)
         foreach (var evt in saveRequest.GetNewEvents())
-            eventBus.Dispatch(saveRequest.Query.TenantId, saveRequest.Query.AggregateId, evt);
+            await eventBus.Dispatch(saveRequest.Query.TenantId, saveRequest.Query.AggregateId, evt);
     }
 }

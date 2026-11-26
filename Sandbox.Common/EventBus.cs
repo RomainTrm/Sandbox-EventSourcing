@@ -5,14 +5,14 @@ namespace Sandbox.Common;
 
 /// <summary>
 /// Dispatches events to every <see cref="IEventHandler{TEvent}"/> registered for the event's exact runtime type.
-/// Handlers run synchronously, in registration order; their exceptions propagate to the caller.
+/// Handlers are awaited one after another, in registration order; their exceptions propagate to the caller.
 /// </summary>
 public class EventBus
 {
     private static readonly MethodInfo InvokeMethod =
         typeof(EventBus).GetMethod(nameof(Invoke), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    private readonly Dictionary<Type, List<Action<string, string, IEvent>>> _handlers = new();
+    private readonly Dictionary<Type, List<Func<string, string, IEvent, Task>>> _handlers = new();
 
     public EventBus(IEnumerable<IEventHandler> handlers)
     {
@@ -27,7 +27,7 @@ public class EventBus
             {
                 var invoker = InvokeMethod
                     .MakeGenericMethod(eventType)
-                    .CreateDelegate<Action<IEventHandler, string, string, IEvent>>();
+                    .CreateDelegate<Func<IEventHandler, string, string, IEvent, Task>>();
 
                 if (!_handlers.TryGetValue(eventType, out var list))
                 {
@@ -40,13 +40,14 @@ public class EventBus
         }
     }
 
-    public void Dispatch(string tenant, string aggregateId, IEvent @event)
+    public async Task Dispatch(string tenant, string aggregateId, IEvent @event)
     {
         if (!_handlers.TryGetValue(@event.GetType(), out var list)) return;
-        foreach (var handle in list) handle(tenant, aggregateId, @event);
+        foreach (var handle in list) 
+            await handle(tenant, aggregateId, @event);
     }
 
-    private static void Invoke<TEvent>(IEventHandler handler, string tenant, string aggregateId, IEvent @event)
+    private static Task Invoke<TEvent>(IEventHandler handler, string tenant, string aggregateId, IEvent @event)
         where TEvent : IEvent
         => ((IEventHandler<TEvent>)handler).Handle(tenant, aggregateId, (TEvent)@event);
 }

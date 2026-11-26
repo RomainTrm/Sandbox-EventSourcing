@@ -4,5 +4,5 @@ public interface IEventHandler;
 
 public interface IEventHandler<in TEvent> : IEventHandler where TEvent : IEvent
 {
-    void Handle(string tenant, string aggregateId, TEvent @event);
+    Task Handle(string tenant, string aggregateId, TEvent @event);
 }
