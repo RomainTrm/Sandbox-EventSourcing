@@ -27,9 +27,23 @@ See `adrs/DCB event store.md` for why this variant exists (the `dcb_flags_lite` 
   - Event ids come from `nextval(pg_get_serial_sequence('dcb_events', 'id'))` in a CTE, so each flag joins to its event by its position in the array. Don't rely on the order of `RETURNING` rows, because Postgres doesn't guarantee it.
 - **Event dispatch** happens only **after the commit**, **once per tag**: `Dispatch(tenant, tag.Id, evt)`, in event order and then tag order. The exact-runtime-type rule of `EventBus` applies.
 
+## Command processing (`IProcessor.cs`)
+
+- A command's decision lives in a processor in `Commands/` (e.g. `CreateBuyingOrderProcessor`). It implements `IProcessor<TCommand, TState>` and has no dependencies:
+  - `GetTenant`
+  - `BuildQuery` returns the typed `Stream<TUnion>`s to load, built with the `Streams` helpers (`Streams.Order(id)`, `Streams.Item(id)`).
+  - `Rehydrate` builds a `TState` (a nested record) from `LoadedStreams`. `streams.Get(Streams.Order(id))` returns that stream's events as its union, so a `switch` over them is exhaustive.
+  - `Execute` returns `EventToSave<IEvent>`s: the plain event records, tagged with `Streams.X(id).Tag`. It throws to reject the command.
+- `Process` loads the streams with one `LoadEvents<TUnion>` per union type, because a load deserializes every stream into the same type.
+- **Processors don't implement `ICommandHandler<>`.** A separate command handler (e.g. `CreateBuyingOrderHandler`, constructor `(IConnectionFactory, EventBus)` so that `Runner` discovers it) doesn't hold state. Its `Handle` builds the `EventStore` (`EventStore.Build(connectionFactory, eventBus)`) and a new processor, then calls `processor.Process(eventStore, command)`.
+- A processor never calls the `EventStore`. `Process` loads, rehydrates, executes, and saves with the loaded `TagQuery`s. So **every tag used by an executed event must be in `BuildQuery`**.
+
 ## Event types
 
-- All events of the project share **one** `closed record` base type that implements `IEvent` and is marked `[JsonPolymorphic(InferClosedTypePolymorphism = true)]`. The events themselves are `sealed record` subtypes.
+- Events are plain `sealed record`s implementing `IEvent` (`Events.cs`). They have no shared base type.
+- **One union per stream**: each kind of stream has a `union` of every event that can be flagged on it, for example `union OrderEvent(BuyingOrderCreated, ItemBought) : IEvent` and `union ItemEvent(ItemBought) : IEvent`. Each union is marked `[JsonUnion(TypeClassifier = typeof(JsonUnionTypeStructuralClassifier))]`. When an event starts being flagged on a stream, add it to that stream's union.
+  - A union is read without a discriminator: the structural classifier picks the case from the JSON property names. So **two cases of a union must not have the same shape**, or deserialization throws.
+- On save, the `EventStore` serializes an `IEvent`-typed event as its runtime type, because `IEvent` itself would serialize as `{}`. It unwraps a union (`IUnion.Value`) before dispatching. A `closed record` hierarchy (the test fakes) is still serialized through its declared type and keeps its discriminator.
 - Keep `AllowOutOfOrderMetadataProperties = true`, because JSONB reorders keys.
 
 ## Tests

@@ -25,5 +25,9 @@ paths:
 
 ## Event types
 
-- Each aggregate defines one `closed record` base type that implements `IEvent` and is marked `[JsonPolymorphic(InferClosedTypePolymorphism = true)]`. Its events are `sealed record` subtypes. `EventStoreTests.cs` shows the pattern.
+- Each aggregate's events are `sealed record`s that implement `IEvent`, grouped in a C# `union` that also implements `IEvent` and is marked `[JsonUnion(TypeClassifier = typeof(JsonUnionTypeStructuralClassifier))]`. For example, `union OrderEvent(BuyingOrderCreated) : IEvent` in `Aggregates/Order.cs`.
+  - A union serializes as its case, with no discriminator. The structural classifier picks the case from the JSON property names, so **two cases of a union must not have the same shape**, or deserialization throws.
+  - `SaveRequest` unwraps a union (`IUnion.Value`) before dispatching, so handlers subscribe to the case type (`IEventHandler<ItemBought>`).
+  - `EventStore` also still supports the older `closed record` + `[JsonPolymorphic]` hierarchy, which `EventStoreTests.cs` uses.
+- An aggregate keeps all of its state in a nested `sealed record State`, with `Initial(id)` and `Apply(evt)`, which switches on the union. `Rehydrate` folds the loaded events over `State.Initial`, and the decision methods read `_state`.
 - Events are stored as JSONB. Keep `AllowOutOfOrderMetadataProperties = true` in the serializer options, because JSONB reorders keys and the type discriminator may not come first.

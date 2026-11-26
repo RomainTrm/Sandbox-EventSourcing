@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Sandbox.Common;
 using Sandbox.Common.Database;
 
@@ -33,7 +34,9 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
         internal override IEnumerable<string> SerializeNewEvents(JsonSerializerOptions options) =>
             NewEvents.Select(evt => JsonSerializer.Serialize(evt, options));
 
-        internal override IEnumerable<IEvent> GetNewEvents() => NewEvents.Cast<IEvent>();
+        // The EventBus dispatches on the exact runtime type, so a union event is unwrapped to its case.
+        internal override IEnumerable<IEvent> GetNewEvents() =>
+            NewEvents.Select(evt => (object)evt is IUnion { Value: IEvent value } ? value : evt);
     }
 
     public async Task<List<TEvents>> LoadEvents<TEvents>(Query query)

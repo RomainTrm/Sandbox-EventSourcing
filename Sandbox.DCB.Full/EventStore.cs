@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Sandbox.Common;
 using Sandbox.Common.Database;
@@ -26,6 +27,20 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
         // JSONB doesn't preserve key order, so the type discriminator may not come first.
         AllowOutOfOrderMetadataProperties = true,
     };
+
+    /// <summary>A union is stored and dispatched as its case: <c>event_type</c> and the EventBus both use the exact runtime type.</summary>
+    private static IEvent Unwrap(IEvent evt) => evt is IUnion { Value: IEvent value } ? value : evt;
+
+    /// <summary>
+    /// <see cref="IEvent"/> carries no type metadata, so such an event is serialized as its runtime type.
+    /// A closed hierarchy or a union is serialized through its declared type, which keeps its discriminator or classifier.
+    /// </summary>
+    private static string Serialize<TEvent>(TEvent evt) where TEvent : IEvent
+    {
+        if (!typeof(TEvent).IsInterface) return JsonSerializer.Serialize(evt, JsonSerializerOptions);
+        var concrete = Unwrap(evt);
+        return JsonSerializer.Serialize(concrete, concrete.GetType(), JsonSerializerOptions);
+    }
 
     /// <summary>Identifies an event stream inside a tenant, e.g. ("item", "42").</summary>
     public record Tag(string Name, string Id);
@@ -139,8 +154,8 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
             new Dictionary<string, object>
             {
                 { "database", tenantId },
-                { "eventTypes", events.Select(evt => evt.Event.GetType().Name).ToArray() },
-                { "data", events.Select(evt => JsonSerializer.Serialize(evt.Event, JsonSerializerOptions)).ToArray() },
+                { "eventTypes", events.Select(evt => Unwrap(evt.Event).GetType().Name).ToArray() },
+                { "data", events.Select(evt => Serialize(evt.Event)).ToArray() },
                 { "eventPositions", flags.Select(flag => flag.EventPosition).ToArray() },
                 { "names", flags.Select(flag => flag.Tag.Name).ToArray() },
                 { "ids", flags.Select(flag => flag.Tag.Id).ToArray() },
@@ -151,6 +166,6 @@ public class EventStore(INotTransactionConnection connection, EventBus eventBus)
         // Dispatch only once the save is committed: a failed append condition throws above and reaches no handler.
         foreach (var evt in events)
         foreach (var tag in evt.Tags)
-            await eventBus.Dispatch(tenantId, tag.Id, evt.Event);
+            await eventBus.Dispatch(tenantId, tag.Id, Unwrap(evt.Event));
     }
 }
