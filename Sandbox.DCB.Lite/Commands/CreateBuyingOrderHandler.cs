@@ -9,7 +9,7 @@ public class CreateBuyingOrderHandler(IConnectionFactory connectionFactory, Even
     public async Task Handle(CreateBuyingOrder command)
     {
         var eventStore = await EventStore.Build(connectionFactory, eventBus);
-        var processor = new CreateBuyingOrderProcessor();
-        await processor.Process(eventStore, command);
+        var decider = new CreateBuyingOrderDecider(command);
+        await decider.Process(eventStore);
     }
 }

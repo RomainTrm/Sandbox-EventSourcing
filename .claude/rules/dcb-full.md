@@ -24,21 +24,24 @@ See `adrs/DCB event store.md` (the `dcb_flags_full` option) and [dcb.events](htt
 - **Insert**: the events and their flags are written by **one statement**. Ids are reserved with `nextval(pg_get_serial_sequence('dcb_events_full', 'id'))` in a CTE, and each flag is joined to its event by position, because the order of `RETURNING` rows isn't guaranteed.
 - **Event dispatch** happens only **after the commit**, **once per tag**: `Dispatch(tenant, tag.Id, evt)`, in event order and then tag order.
 
-## Command processing (`IProcessor.cs`)
+## Command processing (`IDecider.cs`, `IDeciderState.cs`)
 
-- A command's decision lives in a processor in `Commands/` (e.g. `CreateBuyingOrderProcessor`). It implements `IProcessor<TCommand, TEvent, TState>` and has no dependencies:
+- A command's decision lives in a decider in `Commands/` (e.g. `CreateBuyingOrderDecider`). It implements `IDecider<TEvent, TState>`. Its only dependency is the command, taken by its primary constructor (`CreateBuyingOrderDecider(CreateBuyingOrder command)`), so none of its methods take the command:
   - `TEvent` is a nested `union Event(...)` of the events the decision **reads**.
-  - `GetTenant`
-  - `BuildQuery` returns the tags the decision depends on. `Process` builds the `Query` from those tags and the union's cases (`JsonTypeInfo.UnionCases`), so the type filter is never written by hand.
-  - `InitialState` and `ApplyEvent(state, evt)` define the `TState` (a nested record). `Process` folds the loaded events, typed as the union, with `Aggregate(InitialState, ApplyEvent)`. `ApplyEvent` doesn't see the command, so anything it depends on must already be selected by the query's tags.
-  - `Execute` returns `EventToSave<IEvent>`s, the plain event records. They don't have to be cases of the union. It throws to reject the command.
-- **Processors don't implement `ICommandHandler<>`.** A separate command handler (e.g. `CreateBuyingOrderHandler`, constructor `(IConnectionFactory, EventBus)` so that `Runner` discovers it) doesn't hold state. Its `Handle` builds the `EventStore` (`EventStore.Build(connectionFactory, eventBus)`) and a new processor, then calls `processor.Process(eventStore, command)`.
-- A processor never calls the `EventStore`. `Process` loads the query, rehydrates, executes, and saves with the **same query and the loaded pointer** as the append condition.
+  - `GetTenant()`
+  - `BuildQuery()` returns the tags the decision depends on. `Process` builds the `Query` from those tags and the union's cases (`JsonTypeInfo.UnionCases`), so the type filter is never written by hand.
+  - `Decide(state)` returns `EventToSave<IEvent>`s, the plain event records. They don't have to be cases of the union. It throws to reject the command.
+- `TState` is a nested `State` record that implements `IDeciderState<State, Event>`. That interface is the only base type it declares:
+  - `public static State InitialState` is the state before any loaded event is applied. It is `static abstract` in the interface, so a state without one doesn't compile. Don't make it `static virtual`: a default-implemented static auto-property is silently `null`.
+  - `ApplyEvent(evt)` is an instance method that returns the next state (`this with { ... }`). Events are applied in load order. The nested state doesn't see the decider's command, so anything it depends on must already be selected by the query's tags.
+  - `Process` rehydrates with `IDeciderState<TState, TEvent>.Build(loaded.Events)`, which folds from `InitialState`. Don't write the fold by hand.
+- **Deciders don't implement `ICommandHandler<>`.** A separate command handler (e.g. `CreateBuyingOrderHandler`, constructor `(IConnectionFactory, EventBus)` so that `Runner` discovers it) doesn't hold state. Its `Handle` builds the `EventStore` (`EventStore.Build(connectionFactory, eventBus)`) and a new decider from the command (`new CreateBuyingOrderDecider(command)`), then calls `decider.Process(eventStore)`.
+- A decider never calls the `EventStore`. `Process` loads the query, rehydrates, decides, and saves with the **same query and the loaded pointer** as the append condition.
 
 ## Event types
 
 - Events are plain `sealed record`s implementing `IEvent` (`Events.cs`). They have no shared base type. Because `event_type` holds `Type.Name`, two event types must not share a name.
-- **One union per processor**: it lists only the events that processor requests, and it is marked `[JsonUnion(TypeClassifier = typeof(JsonUnionTypeStructuralClassifier))]`. The query's type filter guarantees that only its cases are loaded.
+- **One union per decider**: it lists only the events that decider requests, and it is marked `[JsonUnion(TypeClassifier = typeof(JsonUnionTypeStructuralClassifier))]`. The query's type filter guarantees that only its cases are loaded.
   - A union is read without a discriminator: the structural classifier picks the case from the JSON property names. So **two cases of a union must not have the same shape**, or deserialization throws.
 - On save, the `EventStore` serializes an `IEvent`-typed event as its runtime type, because `IEvent` itself would serialize as `{}`. It unwraps a union (`IUnion.Value`) for `event_type` and dispatch. A `closed record` hierarchy (the test fakes) is still serialized through its declared type and keeps its discriminator.
 - Keep `AllowOutOfOrderMetadataProperties = true`, because JSONB reorders keys.

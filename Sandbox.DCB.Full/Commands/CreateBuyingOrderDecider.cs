@@ -5,30 +5,29 @@ using Sandbox.Common.Dsl;
 
 namespace Sandbox.DCB.Full.Commands;
 
-public class CreateBuyingOrderProcessor
-    : IProcessor<CreateBuyingOrder, CreateBuyingOrderProcessor.Event, CreateBuyingOrderProcessor.State>
+public class CreateBuyingOrderDecider(CreateBuyingOrder command) : IDecider<CreateBuyingOrderDecider.Event, CreateBuyingOrderDecider.State>
 {
     /// <summary>The events this decision reads.</summary>
     [JsonUnion(TypeClassifier = typeof(JsonUnionTypeStructuralClassifier))]
     public union Event(BuyingOrderCreated, ItemBought) : IEvent;
 
-    public sealed record State(bool OrderExists, IReadOnlySet<ItemId> ExistingItems);
+    public sealed record State(bool OrderExists, IReadOnlySet<ItemId> ExistingItems) : IDeciderState<State, Event>
+    {
+        public static State InitialState => new(false, new HashSet<ItemId>());
 
-    public string GetTenant(CreateBuyingOrder command) => command.StoreId.Value;
+        public State ApplyEvent(Event evt) => evt switch
+        {
+            BuyingOrderCreated => this with { OrderExists = true },
+            ItemBought bought => this with { ExistingItems = new HashSet<ItemId>(ExistingItems) { bought.ItemId } },
+        };
+    }
 
-    public IReadOnlyList<EventStore.Tag> BuildQuery(CreateBuyingOrder command) =>
+    public string GetTenant() => command.StoreId.Value;
+
+    public IReadOnlyList<EventStore.Tag> BuildQuery() =>
         [Tags.Order(command.OrderId), ..command.NewItems.Select(newItem => Tags.Item(newItem.Id))];
 
-    public State InitialState => new(false, new HashSet<ItemId>());
-
-    // The query only loads BuyingOrderCreated events tagged with this command's order, so any of them means the order exists.
-    public State ApplyEvent(State state, Event evt) => evt switch
-    {
-        BuyingOrderCreated => state with { OrderExists = true },
-        ItemBought bought => state with { ExistingItems = new HashSet<ItemId>(state.ExistingItems) { bought.ItemId } },
-    };
-
-    public IEnumerable<EventStore.EventToSave<IEvent>> Execute(CreateBuyingOrder command, State state)
+    public IEnumerable<EventStore.EventToSave<IEvent>> Decide(State state)
     {
         if (state.OrderExists)
             throw new InvalidOperationException($"Order {command.OrderId.Value} already exists in store {command.StoreId.Value}.");

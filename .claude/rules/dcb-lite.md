@@ -27,16 +27,16 @@ See `adrs/DCB event store.md` for why this variant exists (the `dcb_flags_lite` 
   - Event ids come from `nextval(pg_get_serial_sequence('dcb_events', 'id'))` in a CTE, so each flag joins to its event by its position in the array. Don't rely on the order of `RETURNING` rows, because Postgres doesn't guarantee it.
 - **Event dispatch** happens only **after the commit**, **once per tag**: `Dispatch(tenant, tag.Id, evt)`, in event order and then tag order. The exact-runtime-type rule of `EventBus` applies.
 
-## Command processing (`IProcessor.cs`)
+## Command processing (`IDecider.cs`)
 
-- A command's decision lives in a processor in `Commands/` (e.g. `CreateBuyingOrderProcessor`). It implements `IProcessor<TCommand, TState>` and has no dependencies:
-  - `GetTenant`
-  - `BuildQuery` returns the typed `Stream<TUnion>`s to load, built with the `Streams` helpers (`Streams.Order(id)`, `Streams.Item(id)`).
-  - `Rehydrate` builds a `TState` (a nested record) from `LoadedStreams`. `streams.Get(Streams.Order(id))` returns that stream's events as its union, so a `switch` over them is exhaustive.
-  - `Execute` returns `EventToSave<IEvent>`s: the plain event records, tagged with `Streams.X(id).Tag`. It throws to reject the command.
+- A command's decision lives in a decider in `Commands/` (e.g. `CreateBuyingOrderDecider`). It implements `IDecider<TState>`. Its only dependency is the command, taken by its primary constructor (`CreateBuyingOrderDecider(CreateBuyingOrder command)`), so none of its methods take the command:
+  - `GetTenant()`
+  - `BuildQuery()` returns the typed `Stream<TUnion>`s to load, built with the `Streams` helpers (`Streams.Order(id)`, `Streams.Item(id)`).
+  - `Rehydrate(streams)` builds a `TState` (a nested record) from `LoadedStreams`, reading the command for the ids of the streams to get. `streams.Get(Streams.Order(id))` returns that stream's events as its union, so a `switch` over them is exhaustive.
+  - `Decide(state)` returns `EventToSave<IEvent>`s: the plain event records, tagged with `Streams.X(id).Tag`. It throws to reject the command.
 - `Process` loads the streams with one `LoadEvents<TUnion>` per union type, because a load deserializes every stream into the same type.
-- **Processors don't implement `ICommandHandler<>`.** A separate command handler (e.g. `CreateBuyingOrderHandler`, constructor `(IConnectionFactory, EventBus)` so that `Runner` discovers it) doesn't hold state. Its `Handle` builds the `EventStore` (`EventStore.Build(connectionFactory, eventBus)`) and a new processor, then calls `processor.Process(eventStore, command)`.
-- A processor never calls the `EventStore`. `Process` loads, rehydrates, executes, and saves with the loaded `TagQuery`s. So **every tag used by an executed event must be in `BuildQuery`**.
+- **Deciders don't implement `ICommandHandler<>`.** A separate command handler (e.g. `CreateBuyingOrderHandler`, constructor `(IConnectionFactory, EventBus)` so that `Runner` discovers it) doesn't hold state. Its `Handle` builds the `EventStore` (`EventStore.Build(connectionFactory, eventBus)`) and a new decider from the command (`new CreateBuyingOrderDecider(command)`), then calls `decider.Process(eventStore)`.
+- A decider never calls the `EventStore`. `Process` loads, rehydrates, decides, and saves with the loaded `TagQuery`s. So **every tag used by a decided event must be in `BuildQuery`**.
 
 ## Event types
 

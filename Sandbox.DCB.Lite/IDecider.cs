@@ -1,5 +1,4 @@
 using Sandbox.Common;
-using Sandbox.Common.Commands;
 
 namespace Sandbox.DCB.Lite;
 
@@ -33,35 +32,34 @@ public sealed class LoadedStreams(IReadOnlyDictionary<EventStore.Tag, List<objec
 }
 
 /// <summary>The decision model of a command: what to load, the state built from it, and the events it decides.</summary>
-public interface IProcessor<in TCommand, TState> where TCommand : ICommand
+public interface IDecider<TState>
 {
-    string GetTenant(TCommand command);
+    string GetTenant();
 
     /// <summary>
     /// The streams the decision depends on. Their loaded versions are the expected versions of the save,
-    /// so every tag used by an executed event must be listed here.
+    /// so every tag used by a decided event must be listed here.
     /// </summary>
-    IReadOnlyList<Stream> BuildQuery(TCommand command);
+    IReadOnlyList<Stream> BuildQuery();
 
     /// <summary>One stream per queried tag. An event on several queried tags appears in each of their streams.</summary>
-    TState Rehydrate(TCommand command, LoadedStreams streams);
+    TState Rehydrate(LoadedStreams streams);
 
     /// <summary>The events to append. Throws when the command is rejected.</summary>
-    IEnumerable<EventStore.EventToSave<IEvent>> Execute(TCommand command, TState state);
+    IEnumerable<EventStore.EventToSave<IEvent>> Decide(TState state);
 }
 
-public static class ProcessorExtensions
+public static class DeciderExtensions
 {
-    /// <summary>Runs a processor: load the streams, rehydrate, execute, then save with the loaded versions.</summary>
-    public static async Task Process<TCommand, TState>(this IProcessor<TCommand, TState> processor, EventStore eventStore, TCommand command)
-        where TCommand : ICommand
+    /// <summary>Runs a decider: load the streams, rehydrate, decide, then save with the loaded versions.</summary>
+    public static async Task Process<TState>(this IDecider<TState> decider, EventStore eventStore)
     {
-        var tenant = processor.GetTenant(command);
+        var tenant = decider.GetTenant();
 
         // One load per union type, since a load deserializes every stream into the same type.
         var tagQueries = new List<EventStore.TagQuery>();
         var streams = new Dictionary<EventStore.Tag, List<object>>();
-        foreach (var group in processor.BuildQuery(command).DistinctBy(stream => stream.Tag).GroupBy(stream => stream.EventType))
+        foreach (var group in decider.BuildQuery().DistinctBy(stream => stream.Tag).GroupBy(stream => stream.EventType))
         {
             var loaded = await group.First().Load(eventStore, tenant, group.Select(stream => stream.Tag));
             foreach (var (tagQuery, events) in loaded)
@@ -71,8 +69,8 @@ public static class ProcessorExtensions
             }
         }
 
-        var state = processor.Rehydrate(command, new LoadedStreams(streams));
-        var newEvents = processor.Execute(command, state);
+        var state = decider.Rehydrate(new LoadedStreams(streams));
+        var newEvents = decider.Decide(state);
 
         await eventStore.SaveEvents(tenant, tagQueries, newEvents);
     }

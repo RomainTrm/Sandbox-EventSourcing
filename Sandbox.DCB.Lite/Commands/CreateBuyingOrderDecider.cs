@@ -4,16 +4,16 @@ using Sandbox.Common.Dsl;
 
 namespace Sandbox.DCB.Lite.Commands;
 
-public class CreateBuyingOrderProcessor : IProcessor<CreateBuyingOrder, CreateBuyingOrderProcessor.State>
+public class CreateBuyingOrderDecider(CreateBuyingOrder command) : IDecider<CreateBuyingOrderDecider.State>
 {
     public sealed record State(bool OrderExists, IReadOnlySet<ItemId> ExistingItems);
 
-    public string GetTenant(CreateBuyingOrder command) => command.StoreId.Value;
+    public string GetTenant() => command.StoreId.Value;
 
-    public IReadOnlyList<Stream> BuildQuery(CreateBuyingOrder command) =>
+    public IReadOnlyList<Stream> BuildQuery() =>
         [Streams.Order(command.OrderId), ..command.NewItems.Select(newItem => Streams.Item(newItem.Id))];
 
-    public State Rehydrate(CreateBuyingOrder command, LoadedStreams streams)
+    public State Rehydrate(LoadedStreams streams)
     {
         var orderExists = streams.Get(Streams.Order(command.OrderId)).Any(evt => evt switch
         {
@@ -32,7 +32,7 @@ public class CreateBuyingOrderProcessor : IProcessor<CreateBuyingOrder, CreateBu
         return new State(orderExists, existingItems);
     }
 
-    public IEnumerable<EventStore.EventToSave<IEvent>> Execute(CreateBuyingOrder command, State state)
+    public IEnumerable<EventStore.EventToSave<IEvent>> Decide(State state)
     {
         if (state.OrderExists)
             throw new InvalidOperationException($"Order {command.OrderId.Value} already exists in store {command.StoreId.Value}.");
